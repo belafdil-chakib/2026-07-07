@@ -16,6 +16,21 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /workdir
 
+# Install uv + venv
+ADD https://astral.sh/uv/install.sh /uv-installer.sh
+RUN sh /uv-installer.sh && rm /uv-installer.sh
+ENV PATH="/root/.local/bin/:$PATH"
+RUN uv venv --python 3.12
+
+# Install Python deps from pyproject.toml (CPU only, cf. [tool.uv.sources]).
+# Installees AVANT le code : la couche reste en cache tant que pyproject.toml
+# ne change pas. uv resout et ecrit /workdir/uv.lock pendant le sync.
+COPY pyproject.toml /workdir/
+RUN uv sync --no-install-project
+
+# Install Ollama
+RUN curl -fsSL https://ollama.com/install.sh | sh
+
 # COPY CODE
 COPY datasets /workdir/datasets
 COPY 1_Tutos /workdir/1_Tutos
@@ -27,19 +42,6 @@ COPY 999_Corrigés /workdir/999_Corrigés
 # Copy startup script
 COPY run_all.sh /workdir
 RUN chmod +x /workdir/run_all.sh
-
-# Install uv + venv
-ADD https://astral.sh/uv/install.sh /uv-installer.sh
-RUN sh /uv-installer.sh && rm /uv-installer.sh
-ENV PATH="/root/.local/bin/:$PATH"
-RUN uv venv --python 3.12
-
-# Install Python deps from pyproject.toml + uv.lock
-COPY pyproject.toml uv.lock /workdir/
-RUN uv sync --no-install-project --frozen
-
-# # Install Ollama
-RUN curl -fsSL https://ollama.com/install.sh | sh
 
 # Expose ports: 11434 for Ollama, 8889 for Jupyter, 8080 open-webui
 EXPOSE 11434 8889 8080
